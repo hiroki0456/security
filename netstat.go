@@ -4,6 +4,9 @@ import (
 	"bufio"
 	"errors"
 	"flag"
+	"fmt"
+	"io"
+	"net"
 	"os"
 	"os/exec"
 	"strings"
@@ -30,11 +33,11 @@ var (
 )
 
 func init() {
-	flag.BoolVar(&cmd_flag, "c", true, "対話型シェルの初期化")
+	flag.BoolVar(&cmd_flag, "c", false, "対話型シェルの初期化")
 	flag.StringVar(&execute_flag, "e", "", "指定のコマンドの実行")
-	flag.BoolVar(&listen_flag, "l", true, "通信待受モード")
+	flag.BoolVar(&listen_flag, "l", false, "通信待受モード")
 	flag.IntVar(&port_flag, "p", 5555, "ポート番号の指定")
-	flag.StringVar(&target_flag, "t", "192.168.1.203", "IPアドレスの指定")
+	flag.StringVar(&target_flag, "t", "127.0.0.1", "IPアドレスの指定")
 }
 
 func execute(cmdstr string) (string, error) {
@@ -60,10 +63,56 @@ func (nc *NetCat) run() {
 }
 
 func (nc *NetCat) send() {
+	conn, err := net.Dial("tcp", fmt.Sprintf(":%d", port_flag))
+	if err != nil {
+		panic(err)
+	}
+	defer conn.Close()
+
+	_, err = conn.Write([]byte(nc.buffer))
+	if err != nil {
+		panic(err)
+	}
+
+	buf := make([]byte, 4096)
+	n, err := conn.Read(buf)
+	fmt.Println(string(buf[:n]))
+	if err != nil {
+		panic(err)
+	}
+}
+
+func (nc *NetCat) listen() {
+	psock, err := net.Listen("tcp", fmt.Sprintf(":%d", port_flag))
+	if err != nil {
+		panic(err)
+	}
+	for {
+		conn, err := psock.Accept()
+		if err != nil {
+			panic(err)
+		}
+		go nc.handle(conn)
+	}
 
 }
 
+func (nc *NetCat) handle(conn net.Conn) {
+	defer conn.Close()
+	if execute_flag != "" {
+		output, err := execute(execute_flag)
+		if err != nil {
+			panic(err)
+		}
+		conn.Write([]byte(output))
+		io.Copy(conn, conn)
+	}
+}
+
 func main() {
+	flag.Parse()
+	fmt.Println(listen_flag)
+	fmt.Println(execute_flag)
 	var buffer string
 	if listen_flag {
 		buffer = ""
@@ -73,5 +122,5 @@ func main() {
 	nc := NetCat{
 		buffer: buffer,
 	}
-	execute("ls -al")
+	nc.run()
 }
