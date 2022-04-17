@@ -1,5 +1,4 @@
 import argparse
-from distutils.command.build import build
 import locale
 import os
 import socket
@@ -148,6 +147,7 @@ if __name__ == '__main__':
         '-t', '--target', default='192.168.1.203', help='IPアドレスの指定')
     parser.add_argument('-u', '--upload', help='ファイルのアップロード')
     args = parser.parse_args()
+    print(args)
     if args.listen:
         buffer = ''
     else:
